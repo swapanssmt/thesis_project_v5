@@ -144,32 +144,32 @@ snapnow;
 % cell.  
 
 
-clear vmcmedium;
-clear vmcboundary;
-
-vmcmedium.scattering_coefficient = 1.0;
-vmcmedium.absorption_coefficient = F;  %refractive index is now a three dimensional array
-vmcmedium.scattering_anisotropy = 0.9;        
-vmcmedium.refractive_index = 1;
-
-vmcboundary = createBoundary(vmcmesh, vmcmedium);
-
-lightsource = findBoundaries(vmcmesh, 'direction', [0 0 0], [0 0 10], 1);
-vmcboundary.lightsource(lightsource) = {'cosinic'};
-
-
-solution = ValoMC(vmcmesh, vmcmedium, vmcboundary);
-
-%% Visualize the solution as a voxel map
-% Since 3D array was used to define the scattering coefficient,
-% solution returned contains the field grid_fluence
-
-slice(X, Y, Z, solution.grid_fluence, 0, 0, 0);
-xlabel('x [mm]');
-ylabel('y [mm]');
-zlabel('z [mm]');
-view(125,25);
-hold
-
-snapnow;
+% clear vmcmedium;
+% clear vmcboundary;
+% 
+% vmcmedium.scattering_coefficient = 1.0;
+% vmcmedium.absorption_coefficient = F;  %refractive index is now a three dimensional array
+% vmcmedium.scattering_anisotropy = 0.9;        
+% vmcmedium.refractive_index = 1;
+% 
+% vmcboundary = createBoundary(vmcmesh, vmcmedium);
+% 
+% lightsource = findBoundaries(vmcmesh, 'direction', [0 0 0], [0 0 10], 1);
+% vmcboundary.lightsource(lightsource) = {'cosinic'};
+% 
+% 
+% solution = ValoMC(vmcmesh, vmcmedium, vmcboundary);
+% 
+% %% Visualize the solution as a voxel map
+% % Since 3D array was used to define the scattering coefficient,
+% % solution returned contains the field grid_fluence
+% 
+% slice(X, Y, Z, solution.grid_fluence, 0, 0, 0);
+% xlabel('x [mm]');
+% ylabel('y [mm]');
+% zlabel('z [mm]');
+% view(125,25);
+% hold
+% 
+% snapnow;
 
