@@ -4,6 +4,5 @@ In this version of code modifications are made for:
 3. Modification in example file to stimulate full boundary lasser light source for 2D and 3D.
 4. change basis from elemental to nodal basis.
 5. Used arccos(a.b) to calcultate distance between directions while discretization of angle on sphere.
-6. Changed mus to (mus+mua)=mut in calculation of step lenght.
-7. Change 2D angular discretization starting point from (0,2pi/nbins) to (2pi/nbins,4pi/nbins).
-8. Presently implementing fluoresecnce.  
+6. Change 2D angular discretization starting point from (0,2pi/nbins) to (2pi/nbins,4pi/nbins).
+7. Presently implementing fluoresecnce.  

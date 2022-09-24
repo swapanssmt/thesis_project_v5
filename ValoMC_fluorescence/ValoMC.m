@@ -112,10 +112,19 @@ function solution = ValoMC(vmcmesh, vmcmedium, vmcboundary, vmcoptions)
     end
 
     if(isfield(vmcmedium,'ny') || isfield(vmcmedium,'nz'))
-        vmcmedium.absorption_coefficient = duplicateArray(vmcmedium.absorption_coefficient(:), length(vmcmesh.H));
+        vmcmedium.absorption_coefficient_ex_sol = duplicateArray(vmcmedium.absorption_coefficient_ex_sol(:), length(vmcmesh.H));
     end
     if(isfield(vmcmedium,'ny') || isfield(vmcmedium,'nz'))
-        vmcmedium.scattering_coefficient = duplicateArray(vmcmedium.scattering_coefficient(:), length(vmcmesh.H));
+        vmcmedium.absorption_coefficient_em_sol = duplicateArray(vmcmedium.absorption_coefficient_em_sol(:), length(vmcmesh.H));
+    end
+    if(isfield(vmcmedium,'ny') || isfield(vmcmedium,'nz'))
+        vmcmedium.absorption_coefficient_ex_f = duplicateArray(vmcmedium.absorption_coefficient_ex_f(:), length(vmcmesh.H));
+    end
+    if(isfield(vmcmedium,'ny') || isfield(vmcmedium,'nz'))
+        vmcmedium.scattering_coefficient_ex = duplicateArray(vmcmedium.scattering_coefficient_ex(:), length(vmcmesh.H));
+    end
+    if(isfield(vmcmedium,'ny') || isfield(vmcmedium,'nz'))
+        vmcmedium.scattering_coefficient_em = duplicateArray(vmcmedium.scattering_coefficient_em(:), length(vmcmesh.H));
     end
     if(isfield(vmcmedium,'ny') || isfield(vmcmedium,'nz'))
         vmcmedium.scattering_anisotropy = duplicateArray(vmcmedium.scattering_anisotropy(:), length(vmcmesh.H));
@@ -129,8 +138,11 @@ function solution = ValoMC(vmcmesh, vmcmedium, vmcboundary, vmcoptions)
     HN = int64(vmcmesh.HN);
     BH = int64(vmcmesh.BH - 1);
     r = double(vmcmesh.r);
-    mua = double(vmcmedium.absorption_coefficient);
-    mus = double(vmcmedium.scattering_coefficient);
+    mua_ex_sol = double(vmcmedium.absorption_coefficient_ex_sol);
+    mua_ex_f = double(vmcmedium.absorption_coefficient_ex_f);
+    mua_em_sol = double(vmcmedium.absorption_coefficient_em_sol);
+    mus_ex = double(vmcmedium.scattering_coefficient_ex);
+    mus_em = double(vmcmedium.scattering_coefficient_em);
     g = double(vmcmedium.scattering_anisotropy);
     n = double(vmcmedium.refractive_index);
     BCType = int8(arrayfun(@(x) controlStringToCharacter(x,'a'), vmcboundary.lightsource));
@@ -159,6 +171,8 @@ function solution = ValoMC(vmcmesh, vmcmedium, vmcboundary, vmcoptions)
     % set default options
     f = double(0.0);
     Nphoton = int64(1e6);
+    Qyield_f=double(1.0);
+    Tau_f=double(10e-9);
     phase0 = 0;
     disable_pbar = int64(0);
     NBin2Dtheta=int64(16);
@@ -173,6 +187,14 @@ function solution = ValoMC(vmcmesh, vmcmedium, vmcboundary, vmcoptions)
         if(isfield(vmcoptions,'photon_count'))
             Nphoton = int64(vmcoptions.photon_count);
         end
+        %%%%%%%%%%%% modified %%%%%%%%%%%%%%%%%%
+        if(isfield(vmcoptions,'Qyield_f'))
+            Qyield_f = double(vmcoptions.Qyield_f);
+        end
+        if(isfield(vmcoptions,'Tau_f'))
+            Tau_f = double(vmcoptions.Tau_f);
+        end
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         if(isfield(vmcoptions, 'phase0'))
             phase0 = double(vmcoptions.phase0);
         end
@@ -213,7 +235,7 @@ function solution = ValoMC(vmcmesh, vmcmedium, vmcboundary, vmcoptions)
             fp = fopen(vmcoptions.export_filename, 'w');
             fprintf(fp, '%d %d %d %d\n', size(H, 1), size(BH, 1), size(r, ...
                                                               1), Nphoton);
-            fprintf(fp, '%e %e %d %d %d\n', f, phase0, rnseed(1), rnseed(2),NBin2Dtheta);
+            fprintf(fp, '%e %e %e %e %d %d %d\n', f, phase0, Qyield_f, Tau_f, rnseed(1), rnseed(2),NBin2Dtheta);
 
             % write the array dimensions to the file so that import
             % can know them
@@ -229,8 +251,8 @@ function solution = ValoMC(vmcmesh, vmcmedium, vmcboundary, vmcoptions)
             fprintf(fp, '%d %d\n', BH');
             fprintf(fp, 'r\n');
             fprintf(fp, '%e %e\n', r');
-            fprintf(fp, 'mua mus g n\n');
-            fprintf(fp, '%e %e %e %e\n', [ mua(:) mus(:) g(:) n(:) ]');
+            fprintf(fp, 'mua_ex_sol mua_ex_f mua_em_sol mus_ex mus_em g n\n');
+            fprintf(fp, '%e %e %e %e %e %e %e\n', [ mua_ex_sol(:) mua_ex_f(:) mua_em_sol(:) mus_ex(:) mus_em(:) g(:) n(:) ]');
             fprintf(fp, 'BCType\n');
             fprintf(fp, '%c\n', BCType);
 
@@ -274,7 +296,7 @@ function solution = ValoMC(vmcmesh, vmcmedium, vmcboundary, vmcoptions)
            GaussianSigma = [];
         end
         % Solve
-        [solution.element_fluence, solution.boundary_exitance, solution.boundary_fluence, solution.R_element_fluence, solution.R_boundary_exitance, solution.R_boundary_fluence, solution.simulation_time, solution.seed_used] = MC2Dmex(H, HN, BH, r, BCType, BCIntensity, BCLightDirectionType, BCLightDirection, BCn, mua, mus, g, n, f, phase0, Nphoton,NBin2Dtheta, GaussianSigma, disable_pbar, uint64(rnseed));
+        [solution.element_fluence, solution.boundary_exitance, solution.boundary_fluence, solution.element_radiance, solution.R_boundary_exitance, solution.boundary_radiance, solution.F_element_fluence, solution.F_boundary_exitance, solution.F_boundary_fluence, solution.F_element_radiance, solution.F_R_boundary_exitance, solution.F_boundary_radiance, solution.simulation_time, solution.seed_used] = MC2Dmex(H, HN, BH, r, BCType, BCIntensity, BCLightDirectionType, BCLightDirection, BCn, mua_ex_sol, mua_ex_f, mua_em_sol, mus_ex, mus_em, g, n, f, phase0, Nphoton, Qyield_f, Tau_f, NBin2Dtheta, GaussianSigma, disable_pbar, uint64(rnseed));
             if(isfield(vmcmedium,'nx') && isfield(vmcmedium,'ny'))
                 % Two dimensional input
                 first = reshape(solution.element_fluence(1:length(vmcmesh.H)/2),vmcmedium.nx, vmcmedium.ny);
@@ -306,7 +328,7 @@ function solution = ValoMC(vmcmesh, vmcmedium, vmcboundary, vmcoptions)
             
             fp = fopen(vmcoptions.export_filename, 'w');
             fprintf(fp, '%d %d %d %d\n', size(H, 1), size(BH, 1), size(r, 1), Nphoton);    
-            fprintf(fp, '%18.10f %18.10f %d %d %d %d\n', f, phase0, rnseed(1), rnseed(2),NBin3Dtheta,NBin3Dphi);
+            fprintf(fp, '%18.10f %18.10f %18.10f %18.10f %d %d\n', f, phase0, Qyield_f, Tau_f, rnseed(1), rnseed(2));
 
             if(isfield(vmcmedium,'nx') && isfield(vmcmedium,'ny') && ...
                isfield(vmcmedium,'nz'))
@@ -320,8 +342,8 @@ function solution = ValoMC(vmcmesh, vmcmedium, vmcboundary, vmcoptions)
             fprintf(fp, '%d %d %d\n', BH');
             fprintf(fp, 'r\n');
             fprintf(fp, '%18.10f %18.10f %18.10f\n', r');
-            fprintf(fp, 'mua mus g n\n');
-            fprintf(fp, '%18.10f %18.10f %18.10f %18.10f\n', [ mua(:) mus(:) g(:) n(:) ]');
+            fprintf(fp, 'mua_ex_sol mua_ex_f mua_em_sol mus_ex mus_em g n\n');
+            fprintf(fp, '%18.10f %18.10f %18.10f %18.10f %18.10f %18.10f %18.10f\n', [ mua_ex_sol(:) mua_ex_f(:) mua_em_sol(:) mus_ex(:) mus_em(:) g(:) n(:) ]');
             fprintf(fp, 'BCType\n');
             fprintf(fp, '%c\n', BCType);
             if exist('BCn')
@@ -347,7 +369,7 @@ function solution = ValoMC(vmcmesh, vmcmedium, vmcboundary, vmcoptions)
             fclose(fp);
             return
         else
-            [solution.element_fluence, solution.boundary_exitance, solution.boundary_fluence, solution.R_element_fluence, solution.R_boundary_exitance, solution.R_boundary_fluence, solution.simulation_time, solution.seed_used] = MC3Dmex(H, HN, BH, r, BCType, BCIntensity, BCLightDirectionType, BCLightDirection, BCn, mua, mus, g, n, f, phase0, Nphoton, ang_discr_centroid, disable_pbar, uint64(rnseed));
+            [solution.element_fluence, solution.boundary_exitance, solution.boundary_fluence, solution.element_radiance, solution.R_boundary_exitance, solution.boundary_radiance, solution.F_element_fluence, solution.F_boundary_exitance, solution.F_boundary_fluence, solution.F_element_radiance, solution.F_R_boundary_exitance, solution.F_boundary_radiance, solution.simulation_time, solution.seed_used] = MC3Dmex(H, HN, BH, r, BCType, BCIntensity, BCLightDirectionType, BCLightDirection, BCn, mua_ex_sol, mua_ex_f, mua_em_sol, mus_ex, mus_em, g, n, f, phase0, Nphoton, Qyield_f, Tau_f, ang_discr_centroid, disable_pbar, uint64(rnseed));
         end
         if(isfield(vmcmedium,'nx') && isfield(vmcmedium,'ny') && isfield(vmcmedium,'nz'))
             % Three dimensional input
@@ -369,9 +391,15 @@ function solution = ValoMC(vmcmesh, vmcmedium, vmcboundary, vmcoptions)
         solution.element_fluence = real(solution.element_fluence);
         solution.boundary_fluence = real(solution.boundary_fluence);
         solution.boundary_exitance = real(solution.boundary_exitance);
-        solution.R_element_fluence = real(solution.R_element_fluence);
-        solution.R_boundary_fluence = real(solution.R_boundary_fluence);
+        solution.element_radiance = real(solution.element_radiance);
+        solution.boundary_radiance = real(solution.boundary_radiance);
         solution.R_boundary_exitance = real(solution.R_boundary_exitance);
+        solution.F_element_fluence = real(solution.F_element_fluence);
+        solution.F_boundary_fluence = real(solution.F_boundary_fluence);
+        solution.F_boundary_exitance = real(solution.F_boundary_exitance);
+        solution.F_element_radiance = real(solution.F_element_radiance);
+        solution.F_boundary_radiance = real(solution.F_boundary_radiance);
+        solution.F_R_boundary_exitance = real(solution.F_R_boundary_exitance);
     end
 
 end

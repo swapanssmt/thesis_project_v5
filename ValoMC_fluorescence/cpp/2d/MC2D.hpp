@@ -1377,7 +1377,7 @@ void MC2D::PropagatePhoton(Photon *phot)
   while (1)
   {
     // Draw the propagation distance
-    prop = -log(UnifOpen()) / (mus[phot->curel]+mua[phot->curel]);
+    prop = -log(UnifOpen()) / mus[phot->curel];
 
     // Propagate until the current propagation distance runs out (and a scattering will occur)
     while (1)
@@ -1545,7 +1545,7 @@ void MC2D::PropagatePhoton(Photon *phot)
       if ((mus[phot->curel] <= 0.0) && (mus[phot->nextel] > 0.0))
       {
         // Draw new propagation distance -- otherwise photon might travel without scattering
-        prop = -log(UnifOpen()) / (mus[phot->nextel]+mua[phot->nextel]);
+        prop = -log(UnifOpen()) / mus[phot->nextel];
       }
 
       // Test for surival of the photon via roulette
@@ -1565,7 +1565,7 @@ void MC2D::PropagatePhoton(Photon *phot)
       }
 
       // Upgrade remaining photon propagation lenght in case it is transmitted to different mus domain
-      prop *= (mus[phot->curel]+mua[phot->curel]) / (mus[phot->nextel]+mua[phot->nextel]);
+      prop *= mus[phot->curel] / mus[phot->nextel];
 
       // Update current face of the photon to that face which it will be on in the next element
       if (HN(phot->nextel, 0) == phot->curel)

@@ -8,8 +8,11 @@ function vmcmedium_out = createMedium(vmcmesh, vmcmedium)
 %          returns
 %
 %                   vmcmedium.refractive_index(:) = 1;
-%                   vmcmedium.scattering_coefficient(:) = 0;
-%                   vmcmedium.absorption_coefficient(:) = 0;
+%                   vmcmedium.scattering_coefficient_ex(:) = 0;
+%                   vmcmedium.absorption_coefficient_ex_sol(:) = 0;
+%                   vmcmedium.absorption_coefficient_ex_f(:) = 0;
+%                   vmcmedium.absorption_coefficient_em_sol(:) = 0;
+%                   vmcmedium.scattering_coefficient_em(:) = 0;
 %                   vmcmedium.scattering_anisotropy(:) = 0;
 %
 %       vmcmedium_out = createMedium(vmcmesh, vmcmedium);
@@ -44,8 +47,11 @@ function vmcmedium_out = createMedium(vmcmesh, vmcmedium)
 
     if(~exist('vmcmedium'))
          vmcmedium.refractive_index = 1;
-         vmcmedium.scattering_coefficient = 0;
-         vmcmedium.absorption_coefficient = 0;
+         vmcmedium.scattering_coefficient_ex = 0;
+         vmcmedium.absorption_coefficient_ex_sol = 0;
+         vmcmedium.absorption_coefficient_ex_f = 0;
+         vmcmedium.absorption_coefficient_em_sol = 0;
+         vmcmedium.scattering_coefficient_em = 0;
          vmcmedium.scattering_anisotropy = 0;
     end
     vmcmedium_out = vmcmedium;
@@ -53,11 +59,20 @@ function vmcmedium_out = createMedium(vmcmesh, vmcmedium)
     if(~isfield(vmcmedium, 'refractive_index'))
        vmcmedium.refractive_index = 1;
     end;
-    if(~isfield(vmcmedium, 'scattering_coefficient'))
-         vmcmedium.scattering_coefficient = 0.0; 
+    if(~isfield(vmcmedium, 'scattering_coefficient_ex'))
+         vmcmedium.scattering_coefficient_ex = 0.0; 
     end;
-    if(~isfield(vmcmedium, 'absorption_coefficient'))
-         vmcmedium.absorption_coefficient = 0.0;
+    if(~isfield(vmcmedium, 'absorption_coefficient_ex_sol'))
+         vmcmedium.absorption_coefficient_ex_sol = 0.0;
+    end;
+    if(~isfield(vmcmedium, 'absorption_coefficient_ex_f'))
+         vmcmedium.absorption_coefficient_ex_f = 0.0;
+    end;
+    if(~isfield(vmcmedium, 'absorption_coefficient_em_sol'))
+         vmcmedium.absorption_coefficient_em_sol = 0.0;
+    end;
+    if(~isfield(vmcmedium, 'scattering_coefficient_em'))
+         vmcmedium.scattering_coefficient_em = 0.0; 
     end;
     if(~isfield(vmcmedium, 'scattering_anisotropy'))
          vmcmedium.scattering_anisotropy = 0.0; 
@@ -80,12 +95,12 @@ function vmcmedium_out = createMedium(vmcmesh, vmcmedium)
         end
     end
     
-    if(~isvector(vmcmedium.scattering_coefficient))
-        vmcmedium_out.nx = size(vmcmedium.scattering_coefficient,1);
-        vmcmedium_out.ny = size(vmcmedium.scattering_coefficient,2);
+    if(~isvector(vmcmedium.scattering_coefficient_ex))
+        vmcmedium_out.nx = size(vmcmedium.scattering_coefficient_ex,1);
+        vmcmedium_out.ny = size(vmcmedium.scattering_coefficient_ex,2);
         
-        if(size(vmcmedium.scattering_coefficient, 3)>1)
-		vmcmedium_out.nz = size(vmcmedium.scattering_coefficient,3);        
+        if(size(vmcmedium.scattering_coefficient_ex, 3)>1)
+		vmcmedium_out.nz = size(vmcmedium.scattering_coefficient_ex,3);        
            if(vmcmedium_out.nx*vmcmedium_out.ny*vmcmedium_out.nz ~= length(vmcmesh.H)/6)
                warning('Mesh size and medium size do not seem compatible.');
            end
@@ -96,11 +111,11 @@ function vmcmedium_out = createMedium(vmcmesh, vmcmedium)
         end
     end
     
-    if(~isvector(vmcmedium.absorption_coefficient))
-        vmcmedium_out.nx = size(vmcmedium.absorption_coefficient,1);
-        vmcmedium_out.ny = size(vmcmedium.absorption_coefficient,2);
-        if(size(vmcmedium.absorption_coefficient, 3)>1)
-           vmcmedium_out.nz = size(vmcmedium.absorption_coefficient,3);
+    if(~isvector(vmcmedium.absorption_coefficient_ex_sol))
+        vmcmedium_out.nx = size(vmcmedium.absorption_coefficient_ex_sol,1);
+        vmcmedium_out.ny = size(vmcmedium.absorption_coefficient_ex_sol,2);
+        if(size(vmcmedium.absorption_coefficient_ex_sol, 3)>1)
+           vmcmedium_out.nz = size(vmcmedium.absorption_coefficient_ex_sol,3);
            if(vmcmedium_out.nx*vmcmedium_out.ny*vmcmedium_out.nz ~= length(vmcmesh.H)/6)
                warning('Mesh size and medium size do not seem compatible.');
            end
@@ -110,7 +125,54 @@ function vmcmedium_out = createMedium(vmcmesh, vmcmedium)
            end
         end
     end
-    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%% modified %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    if(~isvector(vmcmedium.absorption_coefficient_ex_f))
+        vmcmedium_out.nx = size(vmcmedium.absorption_coefficient_ex_f,1);
+        vmcmedium_out.ny = size(vmcmedium.absorption_coefficient_ex_f,2);
+        if(size(vmcmedium.absorption_coefficient_ex_f, 3)>1)
+           vmcmedium_out.nz = size(vmcmedium.absorption_coefficient_ex_f,3);
+           if(vmcmedium_out.nx*vmcmedium_out.ny*vmcmedium_out.nz ~= length(vmcmesh.H)/6)
+               warning('Mesh size and medium size do not seem compatible.');
+           end
+        else
+           if(vmcmedium_out.nx*vmcmedium_out.ny ~= length(vmcmesh.H)/2)
+               warning('Mesh size and medium size do not seem compatible.');
+           end
+        end
+    end
+
+    if(~isvector(vmcmedium.absorption_coefficient_em_sol))
+        vmcmedium_out.nx = size(vmcmedium.absorption_coefficient_em_sol,1);
+        vmcmedium_out.ny = size(vmcmedium.absorption_coefficient_em_sol,2);
+        if(size(vmcmedium.absorption_coefficient_em_sol, 3)>1)
+           vmcmedium_out.nz = size(vmcmedium.absorption_coefficient_em_sol,3);
+           if(vmcmedium_out.nx*vmcmedium_out.ny*vmcmedium_out.nz ~= length(vmcmesh.H)/6)
+               warning('Mesh size and medium size do not seem compatible.');
+           end
+        else
+           if(vmcmedium_out.nx*vmcmedium_out.ny ~= length(vmcmesh.H)/2)
+               warning('Mesh size and medium size do not seem compatible.');
+           end
+        end
+    end
+
+    if(~isvector(vmcmedium.scattering_coefficient_em))
+        vmcmedium_out.nx = size(vmcmedium.scattering_coefficient_em,1);
+        vmcmedium_out.ny = size(vmcmedium.scattering_coefficient_em,2);
+        
+        if(size(vmcmedium.scattering_coefficient_em, 3)>1)
+		vmcmedium_out.nz = size(vmcmedium.scattering_coefficient_em,3);        
+           if(vmcmedium_out.nx*vmcmedium_out.ny*vmcmedium_out.nz ~= length(vmcmesh.H)/6)
+               warning('Mesh size and medium size do not seem compatible.');
+           end
+        else
+           if(vmcmedium_out.nx*vmcmedium_out.ny ~= length(vmcmesh.H)/2)
+               warning('Mesh size and medium size do not seem compatible.');
+           end
+        end
+    end
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if(~isvector(vmcmedium.scattering_anisotropy))
         vmcmedium_out.nx = size(vmcmedium.scattering_anisotropy,1);
         vmcmedium_out.ny = size(vmcmedium.scattering_anisotropy,2);
@@ -127,8 +189,11 @@ function vmcmedium_out = createMedium(vmcmesh, vmcmedium)
     end
 
     vmcmedium_out.refractive_index = duplicateArray(vmcmedium.refractive_index(:), size(vmcmesh.H,1));
-    vmcmedium_out.scattering_coefficient = duplicateArray(vmcmedium.scattering_coefficient(:), size(vmcmesh.H,1));
-    vmcmedium_out.absorption_coefficient = duplicateArray(vmcmedium.absorption_coefficient(:), size(vmcmesh.H,1));
+    vmcmedium_out.scattering_coefficient_ex = duplicateArray(vmcmedium.scattering_coefficient_ex(:), size(vmcmesh.H,1));
+    vmcmedium_out.absorption_coefficient_ex_sol = duplicateArray(vmcmedium.absorption_coefficient_ex_sol(:), size(vmcmesh.H,1));
+    vmcmedium_out.absorption_coefficient_ex_f = duplicateArray(vmcmedium.absorption_coefficient_ex_f(:), size(vmcmesh.H,1));
+    vmcmedium_out.absorption_coefficient_em_sol = duplicateArray(vmcmedium.absorption_coefficient_em_sol(:), size(vmcmesh.H,1));
+    vmcmedium_out.scattering_coefficient_em = duplicateArray(vmcmedium.scattering_coefficient_em(:), size(vmcmesh.H,1));
     vmcmedium_out.scattering_anisotropy = duplicateArray(vmcmedium.scattering_anisotropy(:), size(vmcmesh.H,1));
    
 end
