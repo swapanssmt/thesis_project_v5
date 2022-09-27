@@ -21,8 +21,11 @@ vmcmesh = createRectangularMesh(xsize, ysize, dh);
 %% Give optical parameters
 % Constant optical parameters are set troughout the medium.
 
-vmcmedium.absorption_coefficient = 0.4;     % absorption coefficient [1/mm]
-vmcmedium.scattering_coefficient = 40;      % scattering coefficient [1/mm]
+vmcmedium.absorption_coefficient_ex_sol = 0.026;     % absorption coefficient [1/mm]
+vmcmedium.absorption_coefficient_ex_f = 0.005;     % absorption coefficient [1/mm]
+vmcmedium.absorption_coefficient_em_sol = 0.031;     % absorption coefficient [1/mm]
+vmcmedium.scattering_coefficient_ex = 98.4;      % scattering coefficient [1/mm]
+vmcmedium.scattering_coefficient_em = 98.4;      % scattering coefficient [1/mm]
 vmcmedium.scattering_anisotropy = 0.9;       % anisotropy parameter g of
                                              % the Heneye-Greenstein scattering
                                              % phase function [unitless]
@@ -79,7 +82,7 @@ options.NBin2Dtheta=16;
 % Run the Monte Carlo simulation
 % Use the parameters that were generated to run the simulation in the mesh.
 solution = ValoMC(vmcmesh, vmcmedium, vmcboundary,options);
-node_solution = nodalbasis2D(vmcmesh,solution);
+%node_solution = nodalbasis2D(vmcmesh,solution);
 
 %% Plot the solution
 
