@@ -22,7 +22,7 @@ extern "C" bool utIsInterruptPending();
 //   mex MC2Dmex.cpp
 //
 // To compile with OpenMP (multithread) support (from MATLAB prompt):
-//   mex -DUSE_OMP MC2Dmex.cpp CFLAGS="\$CFLAGS -fopenmp" LDFLAGS="\$LDFLAGS -fopenmp"
+//   mex -DUSE_OMP MC2Dmex.cpp CFLAGS="$CFLAGS -fopenmp" LDFLAGS="$LDFLAGS -fopenmp"
 // Do not use OpenMP version if the MATLAB does not support the compiler used
 
 time_t starting_time;
@@ -101,17 +101,17 @@ void mexFunction(int nlhs, mxArray **plhs, int nrhs, const mxArray **prhs)
   version_string(infobuf);
   mexPrintf("%s",infobuf);
 
-  if ((nrhs != 20) || ((nlhs != 8) && (nlhs != 9)))
+  if ((nrhs != 25) || ((nlhs != 14) && (nlhs != 15)))
   {
     mexPrintf("nrhs %i nlhs %i", nrhs, nlhs);
-    mexErrMsgTxt("Syntax:\n [vsol, bsol, ebsol, R_vsol, R_bsol, R_ebsol, simulationtime, seed, [HN]] = MC2Dmex(H, HN, BH, r, BCType, BCIntensity, BCLightDirectionType, BCLNormal, BCn, mua, mus, g, n, f, phase0, Nphoton,NBin2Dtheta, GaussianSigma, disablepbar, rndseed)\n");
+    mexErrMsgTxt("Syntax:\n [vsol, bsol, ebsol, R_vsol, R_bsol, R_ebsol, F_vsol, F_bsol, F_ebsol, F_R_vsol, F_R_bsol, F_R_ebsol,simulationtime, seed, [HN]] = MC2Dmex(H, HN, BH, r, BCType, BCIntensity, BCLightDirectionType, BCLNormal, BCn, mua_ex_sol, mua_ex_f, mua_em_sol, mus_ex, mus_em, g, n, f, phase0, Nphoton, Qyield_f, Tau_f, NBin2Dtheta, GaussianSigma, disablepbar, rndseed)\n");
   }
 
   // Parse input
   Array<int_fast64_t> H, HN, BH;
-  Array<double> r, mua, mus, g, n;
+  Array<double> r, mua_ex_sol, mua_ex_f, mua_em_sol, mus_ex, mus_em, g, n;
   Array<char> BCType, BCLightDirectionType;
-  Array<double> BCLNormal, BCn, f, BCIntensity, phase0;
+  Array<double> BCLNormal, BCn, f, Qyield_f, Tau_f, BCIntensity, phase0;
   Array<int_fast64_t> Nphoton;
   Array<int_fast64_t> NBin2Dtheta;
   Array<double> GaussianSigma;
@@ -127,17 +127,22 @@ void mexFunction(int nlhs, mxArray **plhs, int nrhs, const mxArray **prhs)
   Convert_mxArray(prhs[6], BCLightDirectionType); // [AL]: New array for normal types
   Convert_mxArray(prhs[7], BCLNormal);
   Convert_mxArray(prhs[8], BCn);
-  Convert_mxArray(prhs[9], mua);
-  Convert_mxArray(prhs[10], mus);
-  Convert_mxArray(prhs[11], g);
-  Convert_mxArray(prhs[12], n);
-  Convert_mxArray(prhs[13], f);
-  Convert_mxArray(prhs[14], phase0);
-  Convert_mxArray(prhs[15], Nphoton);
-  Convert_mxArray(prhs[16], NBin2Dtheta);
-  Convert_mxArray(prhs[17], GaussianSigma);
-  Convert_mxArray(prhs[18], disable_pbar);
-  Convert_mxArray(prhs[19], rndseed);
+  Convert_mxArray(prhs[9], mua_ex_sol);
+  Convert_mxArray(prhs[10], mua_ex_f);
+  Convert_mxArray(prhs[11], mua_em_sol);
+  Convert_mxArray(prhs[12], mus_ex);
+  Convert_mxArray(prhs[13], mus_em);
+  Convert_mxArray(prhs[14], g);
+  Convert_mxArray(prhs[15], n);
+  Convert_mxArray(prhs[16], f);
+  Convert_mxArray(prhs[17], phase0);
+  Convert_mxArray(prhs[18], Nphoton);
+  Convert_mxArray(prhs[19], Qyield_f);
+  Convert_mxArray(prhs[20], Tau_f);
+  Convert_mxArray(prhs[21], NBin2Dtheta);
+  Convert_mxArray(prhs[22], GaussianSigma);
+  Convert_mxArray(prhs[23], disable_pbar);
+  Convert_mxArray(prhs[24], rndseed);
 
   // make negative phase0 positive by adding a multiple of 2*pi
   // Set parameters to MC
@@ -152,12 +157,17 @@ void mexFunction(int nlhs, mxArray **plhs, int nrhs, const mxArray **prhs)
   MC.BCLightDirectionType = BCLightDirectionType; // [AL]
   MC.BCLNormal = BCLNormal;
   MC.BCn = BCn;
-  MC.mua = mua;
-  MC.mus = mus;
+  MC.mua_ex_sol = mua_ex_sol;
+  MC.mua_ex_f = mua_ex_f;
+  MC.mua_em_sol = mua_em_sol;
+  MC.mus_ex = mus_ex;
+  MC.mus_em = mus_em;
   MC.g = g;
   MC.n = n;
   MC.f = f[0];
   MC.Nphoton = Nphoton[0];
+  MC.Qyield_f = Qyield_f[0];
+  MC.Tau_f = Tau_f[0];
   MC.NBin2Dtheta = NBin2Dtheta[0];
   MC.GaussianSigma = GaussianSigma;
   MC.phase0 = phase0[0];
@@ -213,6 +223,15 @@ void mexFunction(int nlhs, mxArray **plhs, int nrhs, const mxArray **prhs)
   Array<double> R_vsolr, R_vsoli, R_bsolr, R_bsoli;
   Array<double> R_dbsolr, R_dbsoli; // [AL]
   //*****************************************
+  //*********************** modify fluoroscence ***********************************
+  Array<double> F_vsolr, F_vsoli, F_bsolr, F_bsoli;
+  Array<double> F_dbsolr, F_dbsoli; // [AL]
+
+  // ****************** MODIFY******************
+  Array<double> F_R_vsolr, F_R_vsoli, F_R_bsolr, F_R_bsoli;
+  Array<double> F_R_dbsolr, F_R_dbsoli; // [AL]
+  //*****************************************
+  //*******************************************************************************
 
   
   Convert_mxArray(&plhs[0], vsolr, vsoli, MC.ER.Nx, MC.ER.Ny);
@@ -224,14 +243,24 @@ void mexFunction(int nlhs, mxArray **plhs, int nrhs, const mxArray **prhs)
   Convert_mxArray(&plhs[4], R_bsolr, R_bsoli, MC.R_EBR.Nx, MC.R_EBR.Ny);
   Convert_mxArray(&plhs[5], R_dbsolr, R_dbsoli, MC.R_DEBR.Nx, MC.R_DEBR.Ny);
   //**************************************************************
-  plhs[6]=mxCreateDoubleMatrix(1,1,mxREAL); // [AL]
+  // ************************** Modify for fluoroscence *********************
+  Convert_mxArray(&plhs[6], F_vsolr, F_vsoli, MC.F_ER.Nx, MC.F_ER.Ny);
+  Convert_mxArray(&plhs[7], F_bsolr, F_bsoli, MC.F_EBR.Nx, MC.F_EBR.Ny);
+  Convert_mxArray(&plhs[8], F_dbsolr, F_dbsoli, MC.F_DEBR.Nx, MC.F_DEBR.Ny);
+
+  //*********************************modify************************
+  Convert_mxArray(&plhs[9], F_R_vsolr, F_R_vsoli, MC.F_R_ER.Nx, MC.F_R_ER.Ny);
+  Convert_mxArray(&plhs[10], F_R_bsolr, F_R_bsoli, MC.F_R_EBR.Nx, MC.F_R_EBR.Ny);
+  Convert_mxArray(&plhs[11], F_R_dbsolr, F_R_dbsoli, MC.F_R_DEBR.Nx, MC.F_R_DEBR.Ny);
+  // ***************************************************************************
+  plhs[12]=mxCreateDoubleMatrix(1,1,mxREAL); // [AL]
   time_t now;
   time(&now);
-  *mxGetPr(plhs[6])=(double) difftime(now,starting_time);
+  *mxGetPr(plhs[12])=(double) difftime(now,starting_time);
 
   const mwSize dims[] = {1,1};
-  plhs[7] = mxCreateNumericMatrix(1, 1, mxUINT64_CLASS, mxREAL);
-  *((unsigned long*) mxGetData(plhs[7])) = MC.seed;
+  plhs[13] = mxCreateNumericMatrix(1, 1, mxUINT64_CLASS, mxREAL);
+  *((unsigned long*) mxGetData(plhs[13])) = MC.seed;
 
   long ii;
   for(ii = 0; ii < MC.ER.N; ii++){
@@ -261,11 +290,38 @@ void mexFunction(int nlhs, mxArray **plhs, int nrhs, const mxArray **prhs)
   }
 
   //************************************************
+  //*************** MODIFY FLUOROSCENCE ************************
+  for(ii = 0; ii < MC.F_ER.N; ii++){
+    F_vsolr[ii] = MC.F_ER[ii];
+    F_vsoli[ii] = MC.F_EI[ii];
+  }
+  for(ii = 0; ii < MC.F_EBR.N; ii++){
+    F_bsolr[ii] = MC.F_EBR[ii];
+    F_bsoli[ii] = MC.F_EBI[ii];
+  }
+  for(ii = 0; ii < MC.F_DEBR.N; ii++){
+    F_dbsolr[ii] = MC.F_DEBR[ii];
+    F_dbsoli[ii] = MC.F_DEBI[ii];
+  }
+  //***************************MODIFY*****************
+  for(ii = 0; ii < MC.F_R_ER.N; ii++){
+    F_R_vsolr[ii] = MC.F_R_ER[ii];
+    F_R_vsoli[ii] = MC.F_R_EI[ii];
+  }
+  for(ii = 0; ii < MC.F_R_EBR.N; ii++){
+    F_R_bsolr[ii] = MC.F_R_EBR[ii];
+    F_R_bsoli[ii] = MC.F_R_EBI[ii];
+  }
+  for(ii = 0; ii < MC.F_R_DEBR.N; ii++){
+    F_R_dbsolr[ii] = MC.F_R_DEBR[ii];
+    F_R_dbsoli[ii] = MC.F_R_DEBI[ii];
+  }
+  //****************************************************************
 
   // Copy topology neighbourhood
-  if(nlhs == 9){
+  if(nlhs == 15){
     Array<long> HNo;
-    Convert_mxArray(&plhs[8], HNo, MC.HN.Nx, MC.HN.Ny);
+    Convert_mxArray(&plhs[14], HNo, MC.HN.Nx, MC.HN.Ny);
     for(ii = 0; ii < MC.HN.N; ii++) HNo[ii] = MC.HN[ii]; 
   }
 

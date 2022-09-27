@@ -90,11 +90,13 @@ public:
 
   // Create, scatter, mirror & propagate a photon
   void CreatePhoton(Photon *phot);
+  void CreatePhoton_f(Photon *phot);
   void ScatterPhoton(Photon *phot);
   void MirrorPhoton(Photon *phot, int_fast64_t ib);
   void MirrorPhoton(Photon *phot, int_fast64_t el, long f);
   int FresnelPhoton(Photon *phot);
   void PropagatePhoton(Photon *phot);
+  void PropagatePhoton_f(Photon *phot);
 
   // Perform MonteCarlo computation
   void MonteCarlo(bool (*progress)(double) = NULL, void (*finalchecks)(int, int) = NULL);
@@ -110,7 +112,7 @@ public:
   Array<double> r, ang_discr_centroid;               // Grid nodes and coordinates of centroid of unit sphere for angular discretization
 
   // Material parameters for each Element
-  Array<double> mua, mus, g, n; // Absorption, Scattering & Scattering inhomogeneity, Index of refraction
+  Array<double> mua_ex_sol, mua_ex_f, mua_em_sol, mus_ex, mus_em, g, n; // Absorption, Scattering & Scattering inhomogeneity, Index of refraction
   Array<double> k, g2;          // Wave number = omega / c * n, square of g
 
   // Boundary definitions for each Boundary triangle
@@ -137,7 +139,7 @@ public:
   //                          r - Relative to surface
 
   // Frequency and angular frequency of amplitude modulation of the light source
-  double f, omega, phase0; //[AL] phase0
+  double f, omega, Qyield_f, Tau_f, phase0; //[AL] phase0
 
   // Number of photons to compute
   int_fast64_t Nphoton;
@@ -160,6 +162,21 @@ public:
   Array<double> R_DEBR, R_DEBI; // Absorbed power density in the boundary elements (real & imaginary) weighted by the dot product
                             // of the direction of the photon packets and the boundary normal
   //****************************************************
+  //*********************** modify fluorescence************************
+
+  // Calculatable parameters
+  Array<double> F_ER, F_EI;     // Absorbed power density in the volumetric elements (real & imaginary)
+  Array<double> F_EBR, F_EBI;   // Absorbed power density in the boundary elements (real & imaginary)
+  Array<double> F_DEBR, F_DEBI; // Absorbed power density in the boundary elements (real & imaginary) weighted by the dot product
+                            // of the direction of the photon packets and the boundary normal
+  
+  // ******************* modify ***********************
+  // Calculatable parameters
+  Array<double> F_R_ER, F_R_EI;     // Absorbed power density in the volumetric elements (real & imaginary)
+  Array<double> F_R_EBR, F_R_EBI;   // Absorbed power density in the boundary elements (real & imaginary)
+  Array<double> F_R_DEBR, F_R_DEBI; // Absorbed power density in the boundary elements (real & imaginary) weighted by the dot product
+                            // of the direction of the photon packets and the boundary normal
+  //*******************************************************************
 
   // Light source likelyhood & creation variables
   Array<int> LightSources;
@@ -188,6 +205,8 @@ MC3D::MC3D()
   c0 = 2.99792458e11;
 
   Nphoton = 1;
+  Qyield_f=1;
+  Tau_f=1e-9;
   //NBin3Dtheta=1;
   //NBin3Dphi=1;
   f = omega = 0.0;
@@ -218,8 +237,11 @@ MC3D &MC3D::operator=(const MC3D &ref)
     HN = ref.HN;
     BH = ref.BH;
     r = ref.r;
-    mua = ref.mua;
-    mus = ref.mus;
+    mua_ex_sol = ref.mua_ex_sol;
+    mua_ex_f = ref.mua_ex_f;
+    mua_em_sol = ref.mua_em_sol;
+    mus_ex = ref.mus_ex;
+    mus_em = ref.mus_em;
     g = ref.g;
     n = ref.n;
     k = ref.k;
@@ -234,6 +256,8 @@ MC3D &MC3D::operator=(const MC3D &ref)
     omega = ref.omega;
     phase0 = ref.phase0; // [AL]
     Nphoton = ref.Nphoton;
+    Qyield_f = ref.Qyield_f;
+    Tau_f = ref.Tau_f;
     ang_discr_centroid = ref.ang_discr_centroid;
     //NBin3Dtheta = ref.NBin3Dtheta;
     //NBin3Dphi = ref.NBin3Dphi;
@@ -250,6 +274,18 @@ MC3D &MC3D::operator=(const MC3D &ref)
     R_EBR.resize(ref.R_EBR.Nx,ref.R_EBR.Ny);
     R_EBI.resize(ref.R_EBI.Nx,ref.R_EBI.Ny);
     //**********************************************
+    //********************************** modify fluoroscence********************
+    F_ER.resize(ref.F_ER.N);
+    F_EI.resize(ref.F_EI.N);
+    F_EBR.resize(ref.F_EBR.N);
+    F_EBI.resize(ref.F_EBI.N);
+
+    // ******************Modify*********************
+    F_R_ER.resize(ref.F_R_ER.Nx, ref.F_R_ER.Ny);
+    F_R_EI.resize(ref.F_R_EI.Nx, ref.F_R_EI.Ny);
+    F_R_EBR.resize(ref.F_R_EBR.Nx, ref.F_R_EBR.Ny);
+    F_R_EBI.resize(ref.F_R_EBI.Nx, ref.F_R_EBI.Ny);
+    //*************************************************************************
     long ii;
 
     for (ii = 0; ii < ER.N; ii++)
@@ -278,6 +314,35 @@ MC3D &MC3D::operator=(const MC3D &ref)
     for (ii = 0; ii < R_DEBR.N; ii++) // [AL]
       R_DEBR[ii] = R_DEBI[ii] = 0.0;    // [AL]
     //************************************
+
+    //**************** MODIFY FLOUROESCENCE***********************
+    for (ii = 0; ii < F_ER.N; ii++)
+      F_ER[ii] = F_EI[ii] = 0.0;
+    for (ii = 0; ii < F_EBR.N; ii++)
+      F_EBR[ii] = F_EBI[ii] = 0.0;
+    // ***************** modify*************
+    for (ii = 0; ii < F_R_ER.N; ii++)
+      F_R_ER[ii] = F_R_EI[ii] = 0.0;
+    for (ii = 0; ii < F_R_EBR.N; ii++)
+      F_R_EBR[ii] = F_R_EBI[ii] = 0.0;
+    //***********************************
+
+    F_DEBR.resize(ref.F_DEBR.N); // [AL]
+    F_DEBI.resize(ref.F_DEBI.N); // [AL]
+    
+    //****************MODIFY************
+    F_R_DEBR.resize(ref.F_R_DEBR.Nx, ref.F_R_DEBR.Ny); // [AL]
+    F_R_DEBI.resize(ref.F_R_DEBI.Nx, ref.F_R_DEBI.Ny); // [AL]
+    //***********************************************************
+
+
+    for (ii = 0; ii < F_DEBR.N; ii++) // [AL]
+      F_DEBR[ii] = F_DEBI[ii] = 0.0;    // [AL]
+    //***************** modify************
+    for (ii = 0; ii < F_R_DEBR.N; ii++) // [AL]
+      F_R_DEBR[ii] = F_R_DEBI[ii] = 0.0;    // [AL]
+    //************************************
+    //*****************************************************************
 
 
     // Initialize BCIntensity to one if not given
@@ -499,8 +564,11 @@ void MC3D::ErrorChecks()
   /* SANITY CHECKS */
   // Check that
   // row size of H and g are equal
-  // row size of H and mus are equal
-  // row size of H and mua are equal
+  // row size of H and mus_ex are equal
+  // row size of H and mus_em are equal
+  // row size of H and mua_ex_sol are equal
+  // row size of H and mua_ex_f are equal
+  // row size of H and mua_em_sol are equal
   // row size of H and n are equal
   // row size of BH and BCn are equal
   // row size of BH and BCType are equal
@@ -515,17 +583,32 @@ void MC3D::ErrorChecks()
     return;
   }
 
-  // row size of H and mua are equal
-  if (mua.Nx != H.Nx)
+  // row size of H and mua_... are equal
+  if (mua_ex_sol.Nx != H.Nx)
   {
-    throw SIZE_MISMATCH_MUA;
+    throw SIZE_MISMATCH_MUA_EX_SOL;
+    return;
+  }
+  if (mua_ex_f.Nx != H.Nx)
+  {
+    throw SIZE_MISMATCH_MUA_EX_F;
+    return;
+  }
+  if (mua_em_sol.Nx != H.Nx)
+  {
+    throw SIZE_MISMATCH_MUA_EM_SOL;
     return;
   }
 
-  // row size of H and mus are equal
-  if (mus.Nx != H.Nx)
+  // row size of H and mus_.. are equal
+  if (mus_ex.Nx != H.Nx)
   {
-    throw SIZE_MISMATCH_MUS;
+    throw SIZE_MISMATCH_MUS_EX;
+    return;
+  }
+  if (mus_em.Nx != H.Nx)
+  {
+    throw SIZE_MISMATCH_MUS_EM;
     return;
   }
 
@@ -632,14 +715,19 @@ void MC3D::Init()
   DistributeArray(BH);
   DistributeArray(r);
   DistributeArray(ang_discr_centroid);
-  DistributeArray(mua);
-  DistributeArray(mus);
+  DistributeArray(mua_ex_sol);
+  DistributeArray(mua_ex_f);
+  DistributeArray(mua_em_sol);
+  DistributeArray(mus_ex);
+  DistributeArray(mus_em);
   DistributeArray(g);
   DistributeArray(n);
   DistributeArray(BCType);
   DistributeArray(BCLNormal);
   DistributeArray(BCn);
   MPI_Bcast(&f, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&Qyield_f, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&Tau_f, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
   MPI_Bcast(&Nphoton, 1, MPI_LONG, 0, MPI_COMM_WORLD);
   //MPI_Bcast(&NBin3Dtheta, 1, MPI_LONG, 0, MPI_COMM_WORLD);
   //MPI_Bcast(&NBin3Dphi, 1, MPI_LONG, 0, MPI_COMM_WORLD);
@@ -717,6 +805,67 @@ void MC3D::Init()
     }
   }
   //**************************************
+  //******************** modify fluoroscence*************************
+  F_ER.resize(H.Nx);
+  F_EI.resize(H.Nx);
+  
+  // *****************Modify****************
+  F_R_ER.resize(H.Nx, ang_discr_centroid.Nx);
+  F_R_EI.resize(H.Nx, ang_discr_centroid.Nx);
+  //**************************************
+
+  for (ii = 0; ii < H.Nx; ii++)
+    F_ER[ii] = F_EI[ii] = 0.0;
+  
+  //*****************MODIFY***********
+  for (ii = 0; ii < H.Nx; ii++)
+  {
+    for(jj = 0; jj < ang_discr_centroid.Nx; jj++)
+    {
+      F_R_ER(ii,jj)=F_R_EI(ii,jj)=0.0;
+    }
+  }
+  //*********************************
+  F_EBR.resize(BH.Nx);
+  F_EBI.resize(BH.Nx);
+  //**************************modify****************
+  F_R_EBR.resize(BH.Nx, ang_discr_centroid.Nx);
+  F_R_EBI.resize(BH.Nx, ang_discr_centroid.Nx);
+  //*********************************
+
+  for (ii = 0; ii < BH.Nx; ii++)
+    F_EBR[ii] = F_EBI[ii] = 0.0;
+  
+  //********************MODIFY*****************
+  for (ii = 0; ii < BH.Nx; ii++)
+  {
+    for(jj = 0; jj < ang_discr_centroid.Nx; jj++)
+    {
+      F_R_EBR(ii,jj)=F_R_EBI(ii,jj)=0.0;
+    }
+  }
+  //***********************************************
+
+  F_DEBR.resize(BH.Nx);
+  F_DEBI.resize(BH.Nx);
+
+  //**************** modify**************
+  F_R_DEBR.resize(BH.Nx, ang_discr_centroid.Nx);
+  F_R_DEBI.resize(BH.Nx, ang_discr_centroid.Nx);
+  //**************************************
+
+  for (ii = 0; ii < BH.Nx; ii++)
+    F_DEBR[ii] = F_DEBI[ii] = 0.0;
+  
+  //******************MODIFY*******************
+  for (ii = 0; ii < BH.Nx; ii++)
+  {
+    for(jj = 0; jj < ang_discr_centroid.Nx; jj++)
+    {
+      F_R_DEBR(ii,jj)=F_R_DEBI(ii,jj)=0.0;
+    }
+  }
+  //******************************************************************
 
 
   // Initialize BCIntensity to one if not given
@@ -1378,7 +1527,33 @@ void MC3D::CreatePhoton(Photon *phot)
   phot->weight = 1.0;
   phot->phase = phase0;
 }
+//********************************************************************************************************
+//***************************** modify fluorescence********************************************************
+// Create a new photon based on LightSources, LightSourcesMother and LighSourcesCDF
+void MC3D::CreatePhoton_f(Photon *phot)
+{
+  phot->curface = -1;
+  // Isotropic -- Photons initial direction probality density is uniform on a sphere
+  // Wolfram Mathworld / Sphere Point Picking
+  double dot, r[3], theta, u;
+  theta = 2.0 * M_PI * UnifHalfUp();
+  u = 2.0 * UnifClosed() - 1.0;
+  r[0] = sqrt(1.0 - pow(u, 2)) * cos(theta);
+  r[1] = sqrt(1.0 - pow(u, 2)) * sin(theta);
+  r[2] = u;
+  phot->dir[0] = r[0];
+  phot->dir[1] = r[1];
+  phot->dir[2] = r[2];
 
+  phot->nextel = -1;
+  phot->nextface = -1;
+  double ck1=omega*Tau_f*UnifOpen();
+  double ck2= sqrt(1+pow(ck1,2));
+  phot->weight =phot->weight*Qyield_f/ck2;
+  phot->phase = phot->phase-atan(-ck1);
+}
+//************************************************************************************************************
+//*************************************************************************************************************
 // Scatter a photon
 void MC3D::ScatterPhoton(Photon *phot)
 {
@@ -1531,9 +1706,10 @@ int MC3D::FresnelPhoton(Photon *phot)
 
   return (0);
 }
-
+//************************************************************************************************
+//**************************** modify fluoroscence *********************************************
 // Propagate a photon until it dies
-void MC3D::PropagatePhoton(Photon *phot)
+void MC3D::PropagatePhoton_f(Photon *phot)
 {
   double prop, dist, ds;
   int_fast64_t ib;
@@ -1541,7 +1717,7 @@ void MC3D::PropagatePhoton(Photon *phot)
   while (1)
   {
     // Draw the propagation distance
-    prop = -log(UnifOpen()) / mus[phot->curel];
+    prop = -log(UnifOpen()) / mus_em[phot->curel];
 
     // Propagate until the current propagation distance runs out (and a scattering will occur)
     while (1)
@@ -1583,10 +1759,211 @@ void MC3D::PropagatePhoton(Photon *phot)
       if (omega <= 0.0)
       {
         // Unmodulated light
-        if (mua[phot->curel] > 0.0)
+        if (mua_em_sol[phot->curel] > 0.0)
         {
-          ER[phot->curel] += (1.0 - exp(-mua[phot->curel] * ds)) * phot->weight;
-          R_ER(phot->curel,idx1) += (1.0 - exp(-mua[phot->curel] * ds)) * phot->weight;
+          F_ER[phot->curel] += (1.0 - exp(-mua_em_sol[phot->curel] * ds)) * phot->weight;
+          F_R_ER(phot->curel,idx1) += (1.0 - exp(-mua_em_sol[phot->curel] * ds)) * phot->weight;
+        }
+        else
+        {
+          F_ER[phot->curel] += phot->weight * ds;
+          F_R_ER(phot->curel,idx1) += phot->weight * ds;
+        }
+      }
+      else
+      {
+        // Modulated light
+
+        /*
+ 	    cls;
+	  
+	    syms w0 mua k x ph0 s real;
+	  
+	    % k = 0; ph0 = 0;
+	    
+	    e = w0 * exp(-mua * x - j * (k * x + ph0));
+	    
+	    g = int(e, x, 0, s);
+	    
+	    syms a b real;
+	    
+	    f = (a + i * b) / (mua + i * k);
+	    
+	    % Change of element as photon passes it
+	    pretty(simplify( real( g * (mua + i * k) ) ))
+	    pretty(simplify( imag( g * (mua + i * k) ) ))
+	    
+	    % Final divider / normalization
+	    pretty( simplify( real(f) ) )
+	    pretty( simplify( imag(f) ) )
+	*/
+
+        F_ER[phot->curel] += phot->weight * (cos(phot->phase) - cos(-phot->phase - k[phot->curel] * ds) * exp(-mua_em_sol[phot->curel] * ds));
+        F_EI[phot->curel] += phot->weight * (-sin(phot->phase) + sin(phot->phase + k[phot->curel] * ds) * exp(-mua_em_sol[phot->curel] * ds));
+        F_R_ER(phot->curel,idx1) += phot->weight * (cos(phot->phase) - cos(-phot->phase - k[phot->curel] * ds) * exp(-mua_em_sol[phot->curel] * ds));
+        F_R_EI(phot->curel,idx1) += phot->weight * (-sin(phot->phase) + sin(phot->phase + k[phot->curel] * ds) * exp(-mua_em_sol[phot->curel] * ds));
+
+        phot->phase += k[phot->curel] * ds;
+      }
+
+      // Upgrade photon weigh
+      phot->weight *= exp(-mua_em_sol[phot->curel] * ds);
+
+      // Photon has reached a situation where it has to be scattered
+      prop -= ds;
+      if (prop <= 0.0)
+        break;
+
+      // Otherwise the photon will continue to pass through the boundaries of the current element
+
+      // Test for boundary conditions
+      if (phot->nextel < 0)
+      {
+        // Boundary element index
+        ib = -1 - phot->nextel;
+
+        if ((BCType[ib] == 'm') || (BCType[ib] == 'L') || (BCType[ib] == 'I') || (BCType[ib] == 'C'))
+        {
+          // Mirror boundary condition -- Reflect the photon
+          MirrorPhoton(phot, ib);
+          phot->curface = phot->nextface;
+          continue;
+        }
+        else
+        {
+          // Absorbing (a, l, i and c)
+          // Check for mismatch between inner & outer index of refraction causes Fresnel transmission
+          if (BCn[ib] > 0.0)
+            if (FresnelPhoton(phot))
+              continue;
+
+          if (omega <= 0.0)
+          {
+            F_EBR[ib] += phot->weight;
+            F_R_EBR(ib,idx1) += phot->weight;
+          }
+          else
+          {
+            F_EBR[ib] += phot->weight * cos(phot->phase);
+            F_EBI[ib] -= phot->weight * sin(phot->phase);
+            F_R_EBR(ib,idx1) += phot->weight * cos(phot->phase);
+            F_R_EBI(ib,idx1) -= phot->weight * sin(phot->phase);
+          }
+          // Photon propagation will terminate
+          return;
+        }
+      }
+
+      // Test transmission from vacuum -> scattering media
+      if ((mus_em[phot->curel] <= 0.0) && (mus_em[phot->nextel] > 0.0))
+      {
+        // Draw new propagation distance -- otherwise photon might travel without scattering
+        prop = -log(UnifOpen()) / mus_em[phot->nextel];
+      }
+
+      // Test for surival of the photon via roulette
+      if (phot->weight < weight0)
+      {
+        if (UnifClosed() > chance)
+          return;
+        phot->weight /= chance;
+      }
+
+      // Fresnel transmission/reflection
+      if (n[phot->curel] != n[phot->nextel])
+      {
+        if (FresnelPhoton(phot))
+          continue;
+      }
+
+      // Upgrade remaining photon propagation lenght in case it is transmitted to different mus_.. domain
+      prop *= mus_em[phot->curel] / mus_em[phot->nextel];
+
+
+
+      // Update current face of the photon to that face which it will be on in the next element
+      if (HN(phot->nextel, 0) == phot->curel)
+        phot->curface = 0;
+      else if (HN(phot->nextel, 1) == phot->curel)
+        phot->curface = 1;
+      else if (HN(phot->nextel, 2) == phot->curel)
+        phot->curface = 2;
+      else if (HN(phot->nextel, 3) == phot->curel)
+        phot->curface = 3;
+      else
+      {
+        loss++;
+        return;
+      }
+
+      // Update current element of the photon
+      phot->curel = phot->nextel;
+    }
+    // Scatter photon
+    if (mus_em[phot->curel] > 0.0)
+      ScatterPhoton(phot);
+  }
+}
+//**********************************************************************************************
+//*************************************************************************************************
+
+// Propagate a photon until it dies
+void MC3D::PropagatePhoton(Photon *phot)
+{
+  double prop, dist, ds;
+  int_fast64_t ib;
+  // Propagate until the photon dies
+  while (1)
+  {
+    // Draw the propagation distance
+    prop = -log(UnifOpen()) / mus_ex[phot->curel];
+    double f_dist=0.0;
+
+    // Propagate until the current propagation distance runs out (and a scattering will occur)
+    while (1)
+    {
+      // Check through which face the photon will exit the current element
+      if (WhichFace(phot, &dist) == -1)
+      {
+        loss++;
+        return;
+      }
+
+      // Travel distance -- Either propagate to the boundary of the element, or to the end of the leap, whichever is closer
+      ds = fmin(prop, dist);
+      f_dist+=ds*mua_ex_f[phot->curel];
+
+      // Move photon
+      phot->pos[0] += phot->dir[0] * ds;
+      phot->pos[1] += phot->dir[1] * ds;
+      phot->pos[2] += phot->dir[2] * ds;
+      double magn=sqrt(pow(phot->dir[0],2)+pow(phot->dir[1],2)+pow(phot->dir[2],2));
+      double u_x=phot->dir[0]/magn;
+      double u_y=phot->dir[1]/magn;
+      double u_z=phot->dir[2]/magn;
+      long idx1=0;
+      long idx2;
+      //double dis_centroid=sqrt(pow((ang_discr_centroid(idx1,0)-u_x),2)+pow((ang_discr_centroid(idx1,1)-u_y),2)+pow((ang_discr_centroid(idx1,2)-u_z),2));
+      double dis_centroid=acos((ang_discr_centroid(idx1,0)*u_x)+(ang_discr_centroid(idx1,1)*u_y)+(ang_discr_centroid(idx1,2)*u_z));
+      for(idx2 = 0; idx2 < ang_discr_centroid.Nx; idx2++)
+      {
+        //double dis_centroid1 = sqrt(pow((ang_discr_centroid(idx2,0)-u_x),2)+pow((ang_discr_centroid(idx2,1)-u_y),2)+pow((ang_discr_centroid(idx2,2)-u_z),2));
+        double dis_centroid1=acos((ang_discr_centroid(idx2,0)*u_x)+(ang_discr_centroid(idx2,1)*u_y)+(ang_discr_centroid(idx2,2)*u_z));
+        if(dis_centroid1 < dis_centroid)
+        {
+          dis_centroid=dis_centroid1;
+          idx1=idx2;
+        }
+      }
+
+      // Upgrade element fluence
+      if (omega <= 0.0)
+      {
+        // Unmodulated light
+        if (mua_ex_sol[phot->curel] > 0.0)
+        {
+          ER[phot->curel] += (1.0 - exp(-mua_ex_sol[phot->curel] * ds)) * phot->weight;
+          R_ER(phot->curel,idx1) += (1.0 - exp(-mua_ex_sol[phot->curel] * ds)) * phot->weight;
         }
         else
         {
@@ -1622,16 +1999,16 @@ void MC3D::PropagatePhoton(Photon *phot)
 	    pretty( simplify( imag(f) ) )
 	*/
 
-        ER[phot->curel] += phot->weight * (cos(phot->phase) - cos(-phot->phase - k[phot->curel] * ds) * exp(-mua[phot->curel] * ds));
-        EI[phot->curel] += phot->weight * (-sin(phot->phase) + sin(phot->phase + k[phot->curel] * ds) * exp(-mua[phot->curel] * ds));
-        R_ER(phot->curel,idx1) += phot->weight * (cos(phot->phase) - cos(-phot->phase - k[phot->curel] * ds) * exp(-mua[phot->curel] * ds));
-        R_EI(phot->curel,idx1) += phot->weight * (-sin(phot->phase) + sin(phot->phase + k[phot->curel] * ds) * exp(-mua[phot->curel] * ds));
+        ER[phot->curel] += phot->weight * (cos(phot->phase) - cos(-phot->phase - k[phot->curel] * ds) * exp(-mua_ex_sol[phot->curel] * ds));
+        EI[phot->curel] += phot->weight * (-sin(phot->phase) + sin(phot->phase + k[phot->curel] * ds) * exp(-mua_ex_sol[phot->curel] * ds));
+        R_ER(phot->curel,idx1) += phot->weight * (cos(phot->phase) - cos(-phot->phase - k[phot->curel] * ds) * exp(-mua_ex_sol[phot->curel] * ds));
+        R_EI(phot->curel,idx1) += phot->weight * (-sin(phot->phase) + sin(phot->phase + k[phot->curel] * ds) * exp(-mua_ex_sol[phot->curel] * ds));
 
         phot->phase += k[phot->curel] * ds;
       }
 
       // Upgrade photon weigh
-      phot->weight *= exp(-mua[phot->curel] * ds);
+      phot->weight *= exp(-mua_ex_sol[phot->curel] * ds);
 
       // Photon has reached a situation where it has to be scattered
       prop -= ds;
@@ -1679,10 +2056,10 @@ void MC3D::PropagatePhoton(Photon *phot)
       }
 
       // Test transmission from vacuum -> scattering media
-      if ((mus[phot->curel] <= 0.0) && (mus[phot->nextel] > 0.0))
+      if ((mus_ex[phot->curel] <= 0.0) && (mus_ex[phot->nextel] > 0.0))
       {
         // Draw new propagation distance -- otherwise photon might travel without scattering
-        prop = -log(UnifOpen()) / mus[phot->nextel];
+        prop = -log(UnifOpen()) / mus_ex[phot->nextel];
       }
 
       // Test for surival of the photon via roulette
@@ -1700,8 +2077,8 @@ void MC3D::PropagatePhoton(Photon *phot)
           continue;
       }
 
-      // Upgrade remaining photon propagation lenght in case it is transmitted to different mus domain
-      prop *= mus[phot->curel] / mus[phot->nextel];
+      // Upgrade remaining photon propagation lenght in case it is transmitted to different mus_.. domain
+      prop *= mus_ex[phot->curel] / mus_ex[phot->nextel];
 
 
 
@@ -1723,9 +2100,15 @@ void MC3D::PropagatePhoton(Photon *phot)
       // Update current element of the photon
       phot->curel = phot->nextel;
     }
-
+    double P_f=(1-exp(-f_dist));
+    if(UnifOpen()<P_f)
+    {
+      CreatePhoton_f(phot);
+      PropagatePhoton_f(phot);
+      return;
+    }
     // Scatter photon
-    if (mus[phot->curel] > 0.0)
+    if (mus_ex[phot->curel] > 0.0)
       ScatterPhoton(phot);
   }
 }
@@ -1873,6 +2256,68 @@ void MC3D::MonteCarlo(bool (*progress)(double), void (*finalchecks)(int,int))
     }
   }
   //*************************************
+  //*************************** modify for fluorosence *******************
+  for (ii = 0; ii < H.Nx; ii++)
+  {
+    F_ER[ii] = F_EI[ii] = 0.0;
+    for (jj = 0; jj < nthread; jj++)
+    {
+      F_ER[ii] += MCS[jj].F_ER[ii];
+      F_EI[ii] += MCS[jj].F_EI[ii];
+    }
+  }
+  // ******************** modify****************
+  for (ii = 0; ii < H.Nx*ang_discr_centroid.Nx; ii++)
+  {
+    F_R_ER[ii] = F_R_EI[ii] = 0.0;
+    for (jj = 0; jj < nthread; jj++)
+    {
+      F_R_ER[ii] += MCS[jj].F_R_ER[ii];
+      F_R_EI[ii] += MCS[jj].F_R_EI[ii];
+    }
+  }
+  //********************************************
+  for (ii = 0; ii < BH.Nx; ii++)
+  {
+    F_EBR[ii] = F_EBI[ii] = 0.0;
+    for (jj = 0; jj < nthread; jj++)
+    {
+      F_EBR[ii] += MCS[jj].F_EBR[ii];
+      F_EBI[ii] += MCS[jj].F_EBI[ii];
+    }
+  }
+  // ***************MODIFY ************************
+  for (ii = 0; ii < BH.Nx*ang_discr_centroid.Nx; ii++)
+  {
+    F_R_EBR[ii] = F_R_EBI[ii] = 0.0;
+    for (jj = 0; jj < nthread; jj++)
+    {
+      F_R_EBR[ii] += MCS[jj].F_R_EBR[ii];
+      F_R_EBI[ii] += MCS[jj].F_R_EBI[ii];
+    }
+  }
+  //*********************************
+
+  for (ii = 0; ii < BH.Nx; ii++) // [AL]
+  {
+    F_DEBR[ii] = F_DEBI[ii] = 0.0;
+    for (jj = 0; jj < nthread; jj++)
+    {
+      F_DEBR[ii] += MCS[jj].F_DEBR[ii];
+      F_DEBI[ii] += MCS[jj].F_DEBI[ii];
+    }
+  }
+  //******************** MODIFY*******************
+  for (ii = 0; ii < BH.Nx*ang_discr_centroid.Nx; ii++) // [AL]
+  {
+    F_R_DEBR[ii] = F_R_DEBI[ii] = 0.0;
+    for (jj = 0; jj < nthread; jj++)
+    {
+      F_R_DEBR[ii] += MCS[jj].F_R_DEBR[ii];
+      F_R_DEBI[ii] += MCS[jj].F_R_DEBI[ii];
+    }
+  }
+  //***********************************************************************
 
   //  delete[] itick;
   delete[] ticks;
@@ -1913,6 +2358,18 @@ void MC3D::MonteCarlo(bool (*progress)(double), void (*finalchecks)(int,int))
   AllReduceArray(R_EBR, MPI_SUM);
   AllReduceArray(R_EBI, MPI_SUM);
   //*******************************************************
+  //*********************** MODIFY FLOURESCENCE *****************
+  // Sum up computation from each computer & normalize
+  AllReduceArray(F_ER, MPI_SUM);
+  AllReduceArray(F_EI, MPI_SUM);
+  AllReduceArray(F_EBR, MPI_SUM);
+  AllReduceArray(F_EBI, MPI_SUM);
+  // ***********************MODIFY********************
+  AllReduceArray(F_R_ER, MPI_SUM);
+  AllReduceArray(F_R_EI, MPI_SUM);
+  AllReduceArray(F_R_EBR, MPI_SUM);
+  AllReduceArray(F_R_EBI, MPI_SUM);
+  //****************************************************************
   // Sum up computed photons
   long tmplong;
   MPI_Allreduce(&Nphoton, &tmplong, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
@@ -1927,8 +2384,8 @@ void MC3D::MonteCarlo(bool (*progress)(double), void (*finalchecks)(int,int))
   {
     for (ii = 0; ii < H.Nx; ii++)
     {
-      if (mua[ii] > 0.0)
-        ER[ii] /= mua[ii] * ElementVolume(ii) * (double)Nphoton;
+      if (mua_ex_sol[ii] > 0.0)
+        ER[ii] /= mua_ex_sol[ii] * ElementVolume(ii) * (double)Nphoton;
       else
         ER[ii] /= ElementVolume(ii) * (double)Nphoton;
     }
@@ -1940,8 +2397,8 @@ void MC3D::MonteCarlo(bool (*progress)(double), void (*finalchecks)(int,int))
     for (ii = 0; ii < H.Nx; ii++)
     {
       double a = ER[ii], b = EI[ii];
-      ER[ii] = (b * k[ii] + a * mua[ii]) / (pow(k[ii], 2) + pow(mua[ii], 2)) / (double)Nphoton / ElementVolume(ii);
-      EI[ii] = -(a * k[ii] - b * mua[ii]) / (pow(k[ii], 2) + pow(mua[ii], 2)) / (double)Nphoton / ElementVolume(ii);
+      ER[ii] = (b * k[ii] + a * mua_ex_sol[ii]) / (pow(k[ii], 2) + pow(mua_ex_sol[ii], 2)) / (double)Nphoton / ElementVolume(ii);
+      EI[ii] = -(a * k[ii] - b * mua_ex_sol[ii]) / (pow(k[ii], 2) + pow(mua_ex_sol[ii], 2)) / (double)Nphoton / ElementVolume(ii);
     }
     for (ii = 0; ii < BH.Nx; ii++)
     {
@@ -1959,8 +2416,8 @@ void MC3D::MonteCarlo(bool (*progress)(double), void (*finalchecks)(int,int))
     {
       for(jj = 0; jj < ang_discr_centroid.Nx; jj++)
       {
-          if (mua[ii] > 0.0)
-           R_ER(ii,jj) /= mua[ii] * ElementVolume(ii) * (double)Nphoton;
+          if (mua_ex_sol[ii] > 0.0)
+           R_ER(ii,jj) /= mua_ex_sol[ii] * ElementVolume(ii) * (double)Nphoton;
           else
            R_ER(ii,jj) /= ElementVolume(ii) * (double)Nphoton;
       }
@@ -1980,8 +2437,8 @@ void MC3D::MonteCarlo(bool (*progress)(double), void (*finalchecks)(int,int))
       for(jj = 0; jj < ang_discr_centroid.Nx; jj++)
       {
         double a = R_ER(ii,jj), b = R_EI(ii,jj);
-        R_ER(ii,jj) = (b * k[ii] + a * mua[ii]) / (pow(k[ii], 2) + pow(mua[ii], 2)) / (double)Nphoton / ElementVolume(ii);
-        R_EI(ii,jj) = -(a * k[ii] - b * mua[ii]) / (pow(k[ii], 2) + pow(mua[ii], 2)) / (double)Nphoton / ElementVolume(ii);
+        R_ER(ii,jj) = (b * k[ii] + a * mua_ex_sol[ii]) / (pow(k[ii], 2) + pow(mua_ex_sol[ii], 2)) / (double)Nphoton / ElementVolume(ii);
+        R_EI(ii,jj) = -(a * k[ii] - b * mua_ex_sol[ii]) / (pow(k[ii], 2) + pow(mua_ex_sol[ii], 2)) / (double)Nphoton / ElementVolume(ii);
       }
     }
     for (ii = 0; ii < BH.Nx; ii++)
@@ -1994,6 +2451,79 @@ void MC3D::MonteCarlo(bool (*progress)(double), void (*finalchecks)(int,int))
     }
   }
   //***********************************************************
+  //**************************** MODIFY FLUOROSCENCE***************
+  // Normalize output variables
+  if (omega <= 0.0)
+  {
+    for (ii = 0; ii < H.Nx; ii++)
+    {
+      if (mua_em_sol[ii] > 0.0)
+        F_ER[ii] /= mua_em_sol[ii] * ElementVolume(ii) * (double)Nphoton;
+      else
+        F_ER[ii] /= ElementVolume(ii) * (double)Nphoton;
+    }
+    for (ii = 0; ii < BH.Nx; ii++)
+      F_EBR[ii] /= (double)Nphoton * ElementArea(ii);
+  }
+  else
+  {
+    for (ii = 0; ii < H.Nx; ii++)
+    {
+      double a = F_ER[ii], b = F_EI[ii];
+      F_ER[ii] = (b * k[ii] + a * mua_em_sol[ii]) / (pow(k[ii], 2) + pow(mua_em_sol[ii], 2)) / (double)Nphoton / ElementVolume(ii);
+      F_EI[ii] = -(a * k[ii] - b * mua_em_sol[ii]) / (pow(k[ii], 2) + pow(mua_em_sol[ii], 2)) / (double)Nphoton / ElementVolume(ii);
+    }
+    for (ii = 0; ii < BH.Nx; ii++)
+    {
+      F_EBR[ii] /= (double)Nphoton * ElementArea(ii);
+      F_EBI[ii] /= (double)Nphoton * ElementArea(ii);
+    }
+  }
+
+  // ************************* modify*************************
+  //long kk;
+  // Normalize output variables
+  if (omega <= 0.0)
+  {
+    for (ii = 0; ii < H.Nx; ii++)
+    {
+      for(jj = 0; jj < ang_discr_centroid.Nx; jj++)
+      {
+          if (mua_em_sol[ii] > 0.0)
+           F_R_ER(ii,jj) /= mua_em_sol[ii] * ElementVolume(ii) * (double)Nphoton;
+          else
+           F_R_ER(ii,jj) /= ElementVolume(ii) * (double)Nphoton;
+      }
+    }
+    for (ii = 0; ii < BH.Nx; ii++)
+    {
+      for(jj = 0; jj < ang_discr_centroid.Nx; jj++)
+      {
+        F_R_EBR(ii,jj) /= (double)Nphoton * ElementArea(ii);
+      }
+    }
+  }
+  else
+  {
+    for (ii = 0; ii < H.Nx; ii++)
+    {
+      for(jj = 0; jj < ang_discr_centroid.Nx; jj++)
+      {
+        double a = F_R_ER(ii,jj), b = F_R_EI(ii,jj);
+        F_R_ER(ii,jj) = (b * k[ii] + a * mua_em_sol[ii]) / (pow(k[ii], 2) + pow(mua_em_sol[ii], 2)) / (double)Nphoton / ElementVolume(ii);
+        F_R_EI(ii,jj) = -(a * k[ii] - b * mua_em_sol[ii]) / (pow(k[ii], 2) + pow(mua_em_sol[ii], 2)) / (double)Nphoton / ElementVolume(ii);
+      }
+    }
+    for (ii = 0; ii < BH.Nx; ii++)
+    {
+      for(jj = 0; jj < ang_discr_centroid.Nx; jj++)
+      {
+        F_R_EBR(ii,jj) /= (double)Nphoton * ElementArea(ii);
+        F_R_EBI(ii,jj) /= (double)Nphoton * ElementArea(ii);
+      }
+    }
+  }
+  //*****************************************************************
   if (progress != NULL)
     progress(100);
 }

@@ -124,12 +124,12 @@ int LoadProblem_TXT(char *fin)
     File Structure for text input:
 
       Ne Nb Nr Nphoton NBin2Dtheta
-      f phase0
+      f phase0 Qyield_f Tau_f
       nx ny nz [AL]
       H
       BH
       r
-      mua mus g n
+      mua_ex_sol mua_ex_f mua_em_sol mus_ex mus_em g n
       BCType
       [BCn]
       [BCLNormal] -- if provided, BCn has to be provided as well
@@ -148,7 +148,7 @@ int LoadProblem_TXT(char *fin)
    
 
   fsr = fscanf(fp, "%li %li %li %li %li\n", &Ne, &Nb, &Nr, &MC.Nphoton, &MC.NBin2Dtheta);
-  fsr = fscanf(fp, "%lf %lf %li %li\n", &MC.f, &MC.phase0, &sd1, &sd2); // [AL]
+  fsr = fscanf(fp, "%lf %lf %lf %lf %li %li\n", &MC.f, &MC.Qyield_f, &MC.Tau_f, &MC.phase0, &sd1, &sd2); // [AL]
 
   char line[5012]; // skip a line
   char *tmpbuf = fgets(line, 5011, fp);
@@ -162,6 +162,8 @@ int LoadProblem_TXT(char *fin)
 
   printf("Constants:\n");
   printf("  %10s   (%e)\n", "f", MC.f);
+  printf("  %10s   (%e)\n", "Qyield_f", MC.Qyield_f);
+  printf("  %10s   (%e)\n", "Tau_f", MC.Tau_f);
   printf("  %10s   (%e)\n", "phase0", MC.phase0);
   printf("  %10s   (%li)\n", "Ne", Ne);
   printf("  %10s   (%li)\n", "Nb", Nb);
@@ -180,7 +182,7 @@ int LoadProblem_TXT(char *fin)
   readAndResize(fp, Ne, 3, true, &MC.H, "H");
   readAndResize(fp, Nb, 2, true, &MC.BH, "BH");
   readAndResize(fp, Nr, 2, true, &MC.r, "r");
-  readAndResize(fp, Ne, 1, true, &MC.mua, &MC.mus, &MC.g, &MC.n, "mua", "mus", "g", "n");
+  readAndResize(fp, Ne, 1, true, &MC.mua_ex_sol, &MC.mua_ex_f, &MC.mua_em_sol, &MC.mus_ex, &MC.mus_em, &MC.g, &MC.n, "mua_ex_sol", "mua_ex_f", "mua_em_sol", "mus_ex", "mus_em", "g", "n");
   readAndResize(fp, Nb, 1, true, &MC.BCType, "BCType");
   readAndResize(fp, Nb, 1, false, &MC.BCn, "BCn");
   readAndResize(fp, Nb, 2, false, &MC.BCLNormal, "BCLightDirection");
@@ -217,6 +219,17 @@ int SaveProblem_TXT(char *fout, int time)
   for (ii = 0; ii < MC.R_EBR.N; ii++)
     fprintf(fp, "%e %e\n", MC.R_EBR[ii], MC.R_EBI[ii]);
   //*********************************************
+  //*************** modify fluoroscence *********************
+  for (ii = 0; ii < MC.F_ER.Nx; ii++)
+    fprintf(fp, "%e %e\n", MC.F_ER[ii], MC.F_EI[ii]);
+  for (ii = 0; ii < MC.F_EBR.Nx; ii++)
+    fprintf(fp, "%e %e\n", MC.F_EBR[ii], MC.F_EBI[ii]);
+  //******************MODIFY************************
+  for (ii = 0; ii < MC.F_R_ER.N; ii++)
+    fprintf(fp, "%e %e\n", MC.F_R_ER[ii], MC.F_R_EI[ii]);
+  for (ii = 0; ii < MC.F_R_EBR.N; ii++)
+    fprintf(fp, "%e %e\n", MC.F_R_EBR[ii], MC.F_R_EBI[ii]);
+  //**********************************************************
   fclose(fp);
 
   return (0);

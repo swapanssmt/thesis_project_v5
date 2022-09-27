@@ -116,7 +116,7 @@ void readAndResize(FILE *file, int height, int width, bool halt, Array<F> *array
 }
 
 template <typename F>
-void readAndResize(FILE *file, int height, int width, bool halt, Array<F> *array1, Array<F> *array2, Array<F> *array3, Array<F> *array4, std::string name1, std::string name2, std::string name3, std::string name4)
+void readAndResize(FILE *file, int height, int width, bool halt, Array<F> *array1, Array<F> *array2, Array<F> *array3, Array<F> *array4, Array<F> *array5, Array<F> *array6, Array<F> *array7, std::string name1, std::string name2, std::string name3, std::string name4, std::string name5, std::string name6, std::string name7)
 {
   std::vector<Array<F> *> items;
   std::vector<std::string> names;
@@ -128,6 +128,12 @@ void readAndResize(FILE *file, int height, int width, bool halt, Array<F> *array
   names.push_back(name3);
   items.push_back(array4);
   names.push_back(name4);
+  items.push_back(array5);
+  names.push_back(name5);
+  items.push_back(array6);
+  names.push_back(name6);
+  items.push_back(array7);
+  names.push_back(name7);
   readAndResize(file, height, width, halt, items, names);
 }
 

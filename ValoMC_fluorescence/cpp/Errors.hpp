@@ -4,8 +4,11 @@
 enum mcerror {
    NO_LIGHTSOURCE,
    SIZE_MISMATCH_G,
-   SIZE_MISMATCH_MUA,
-   SIZE_MISMATCH_MUS,
+   SIZE_MISMATCH_MUA_EX_SOL,
+   SIZE_MISMATCH_MUA_EX_F,
+   SIZE_MISMATCH_MUA_EM_SOL,
+   SIZE_MISMATCH_MUS_EX,
+   SIZE_MISMATCH_MUS_EM,
    SIZE_MISMATCH_N,
    SIZE_MISMATCH_BCN,
    MISSING_BCN,
@@ -27,8 +30,16 @@ static const char *errorstring(mcerror error) {
             return "No lightsource";
         case SIZE_MISMATCH_G:
             return "Scattering anisotropy array is not equal in size to the number of elements";
-        case SIZE_MISMATCH_MUA:
-            return "Absorption array is not equal in size to the number of elements";
+        case SIZE_MISMATCH_MUA_EX_SOL:
+            return "Absorption array of mixture at excitation wavelenght is not equal in size to the number of elements";
+        case SIZE_MISMATCH_MUA_EX_F:
+            return "Absorption array of fluorofore at excitation wavelenght is not equal in size to the number of elements";
+        case SIZE_MISMATCH_MUA_EM_SOL:
+            return "Absorption array of mixture at emission wavelenght is not equal in size to the number of elements";
+        case SIZE_MISMATCH_MUS_EX:
+            return "Scattering array at excitation wavelenght is not equal in size to the number of elements";
+        case SIZE_MISMATCH_MUS_EM:
+            return "Absorption array at emission wavelenght is not equal in size to the number of elements";
         case SIZE_MISMATCH_N:
             return "Refractive index array is not equal in size to the number of elements";
         case SIZE_MISMATCH_BCN:
