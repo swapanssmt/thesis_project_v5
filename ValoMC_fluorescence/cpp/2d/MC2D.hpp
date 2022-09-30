@@ -1327,6 +1327,10 @@ void MC2D::CreatePhoton(Photon *phot)
 void MC2D::CreatePhoton_f(Photon *phot)
 {
   phot->curface = -1;
+  double r1 = UnifOpen(), r2 = UnifOpen();
+  phot->pos[0] = (1.0 - sqrt(r1)) * r(H(phot->curel, 0), 0) + sqrt(r1) * (1.0 - r2) * r(H(phot->curel, 1), 0) + sqrt(r1) * r2 * r(H(phot->curel, 2), 0);
+  phot->pos[1] = (1.0 - sqrt(r1)) * r(H(phot->curel, 0), 1) + sqrt(r1) * (1.0 - r2) * r(H(phot->curel, 1), 1) + sqrt(r1) * r2 * r(H(phot->curel, 2), 1);
+  phot->pos[2] = (1.0 - sqrt(r1)) * r(H(phot->curel, 0), 2) + sqrt(r1) * (1.0 - r2) * r(H(phot->curel, 1), 2) + sqrt(r1) * r2 * r(H(phot->curel, 2), 2);
   // Isotropic -- Photons initial direction probality density is uniform on a circle
   double phi0, phi;
   phi0 = atan2(n[1], n[0]);
@@ -1745,7 +1749,7 @@ void MC2D::PropagatePhoton(Photon *phot)
   {
     // Draw the propagation distance
     prop = -log(UnifOpen()) / mus_ex[phot->curel];
-    double f_dist=0.0;
+    //double f_dist=0.0;
 
     // Propagate until the current propagation distance runs out (and a scattering will occur)
     while (1)
@@ -1760,7 +1764,15 @@ void MC2D::PropagatePhoton(Photon *phot)
 
       // Travel distance -- Either propagate to the boundary of the element, or to the end of the leap, whichever is closer
       ds = fmin(prop, dist);
-      f_dist+=ds*mua_ex_f[phot->curel];
+      //f_dist+=ds*mua_ex_f[phot->curel];
+      // checking for fluoroscence
+      double P_f=(1-exp(-ds*mua_ex_f[phot->curel]));
+      if(UnifOpen()<P_f)
+      {
+        CreatePhoton_f(phot);
+        PropagatePhoton_f(phot);
+        return;
+      }
 
       // Move photon
       phot->pos[0] += phot->dir[0] * ds;
@@ -1952,14 +1964,7 @@ void MC2D::PropagatePhoton(Photon *phot)
       // Update current element of the photon
       phot->curel = phot->nextel;
     }
-    // checking for fluoroscence
-    double P_f=(1-exp(-f_dist));
-    if(UnifOpen()<P_f)
-    {
-      CreatePhoton_f(phot);
-      PropagatePhoton_f(phot);
-      return;
-    }
+    
     // Scatter photon
     if (mus_ex[phot->curel] > 0.0)
       ScatterPhoton(phot);

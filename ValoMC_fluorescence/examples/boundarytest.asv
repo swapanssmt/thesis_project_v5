@@ -105,16 +105,16 @@ hold on;
 % boundary element is calculated
 
 
-%avgr = (vmcmesh.r(vmcmesh.BH(:, 1),:) + vmcmesh.r(vmcmesh.BH(:, 2),:))/2;
-%h = plot3(avgr(:,1), avgr(:,2), (solution.boundary_exitance), 'b','LineWidth',1.5);
+avgr = (vmcmesh.r(vmcmesh.BH(:, 1),:) + vmcmesh.r(vmcmesh.BH(:, 2),:))/2;
+h = plot3(avgr(:,1), avgr(:,2), (solution.boundary_exitance), 'b','LineWidth',1.5);
 
 % Draw the fluence in each element as before
-patch('Faces', vmcmesh.H, 'Vertices',vmcmesh.r, 'FaceVertexCData', log(solution.F_element_fluence), 'FaceColor', 'flat', 'EdgeColor','none');
+patch('Faces', vmcmesh.H, 'Vertices',vmcmesh.r, 'FaceVertexCData', log(solution.element_fluence), 'FaceColor', 'flat', 'EdgeColor','none');
 xlabel('[mm]');
 ylabel('[mm]');
 c = colorbar;                       % create a colorbar
 c.Label.String = 'Fluence [J/mm^2]';
-%legend(h,{'Boundary exitance'});
+legend(h,{'Boundary exitance'});
 
 % tilt the view
 az = -54;  

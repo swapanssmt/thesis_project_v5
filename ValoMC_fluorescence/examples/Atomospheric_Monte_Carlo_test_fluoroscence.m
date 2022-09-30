@@ -77,7 +77,7 @@ vmcboundary.exterior_refractive_index = 1;
 
 %%
 options.frequency=0;    
-options.photon_count = 1e5;
+options.photon_count = 1e6;
 options.NBin2Dtheta=16;
 % Run the Monte Carlo simulation
 % Use the parameters that were generated to run the simulation in the mesh.

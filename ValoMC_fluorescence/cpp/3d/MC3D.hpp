@@ -1917,7 +1917,7 @@ void MC3D::PropagatePhoton(Photon *phot)
   {
     // Draw the propagation distance
     prop = -log(UnifOpen()) / mus_ex[phot->curel];
-    double f_dist=0.0;
+    //double f_dist=0.0;
 
     // Propagate until the current propagation distance runs out (and a scattering will occur)
     while (1)
@@ -1931,12 +1931,19 @@ void MC3D::PropagatePhoton(Photon *phot)
 
       // Travel distance -- Either propagate to the boundary of the element, or to the end of the leap, whichever is closer
       ds = fmin(prop, dist);
-      f_dist+=ds*mua_ex_f[phot->curel];
+      //f_dist+=ds*mua_ex_f[phot->curel];
 
       // Move photon
       phot->pos[0] += phot->dir[0] * ds;
       phot->pos[1] += phot->dir[1] * ds;
       phot->pos[2] += phot->dir[2] * ds;
+      double P_f=(1-exp(-ds*mua_ex_f[phot->curel]));
+      if(UnifOpen()<P_f)
+      {
+        CreatePhoton_f(phot);
+        PropagatePhoton_f(phot);
+        return;
+      }
       double magn=sqrt(pow(phot->dir[0],2)+pow(phot->dir[1],2)+pow(phot->dir[2],2));
       double u_x=phot->dir[0]/magn;
       double u_y=phot->dir[1]/magn;
@@ -2100,13 +2107,7 @@ void MC3D::PropagatePhoton(Photon *phot)
       // Update current element of the photon
       phot->curel = phot->nextel;
     }
-    double P_f=(1-exp(-f_dist));
-    if(UnifOpen()<P_f)
-    {
-      CreatePhoton_f(phot);
-      PropagatePhoton_f(phot);
-      return;
-    }
+    
     // Scatter photon
     if (mus_ex[phot->curel] > 0.0)
       ScatterPhoton(phot);
