@@ -1765,14 +1765,7 @@ void MC2D::PropagatePhoton(Photon *phot)
       // Travel distance -- Either propagate to the boundary of the element, or to the end of the leap, whichever is closer
       ds = fmin(prop, dist);
       //f_dist+=ds*mua_ex_f[phot->curel];
-      // checking for fluoroscence
-      double P_f=(1-exp(-ds*mua_ex_f[phot->curel]));
-      if(UnifOpen()<P_f)
-      {
-        CreatePhoton_f(phot);
-        PropagatePhoton_f(phot);
-        return;
-      }
+
 
       // Move photon
       phot->pos[0] += phot->dir[0] * ds;
@@ -1841,6 +1834,14 @@ void MC2D::PropagatePhoton(Photon *phot)
 
       // Upgrade photon weight
       phot->weight *= exp(-mua_ex_sol[phot->curel] * ds);
+      // checking for fluoroscence
+      double P_f=(1-exp(-ds*mua_ex_f[phot->curel]));
+      if(UnifOpen()<P_f)
+      {
+        CreatePhoton_f(phot);
+        PropagatePhoton_f(phot);
+        return;
+      }
 
       // Photon has reached a situation where it has to be scattered
       prop -= ds;

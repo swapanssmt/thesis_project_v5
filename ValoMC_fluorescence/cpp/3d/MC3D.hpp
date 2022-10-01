@@ -65,6 +65,7 @@ public:
 
   // Volume of element el
   double ElementVolume(int_fast64_t el);
+  void rnd_tetra(double arr[]);
   // Area of boundary element ib, or volumetric element el face f
   double ElementArea(int_fast64_t ib);
   double ElementArea(int_fast64_t el, long f);
@@ -431,6 +432,38 @@ double MC3D::ElementVolume(int_fast64_t el)
   vol = fabs(vol) / 6.0;
 
   return (vol);
+}
+void MC3D::rnd_tetra(double arr[])
+{
+  double s,t,u,w;
+	s=UnifOpen();
+	t=UnifOpen();
+	u=UnifOpen();
+	if((s+t)>1)
+	{
+		s=1-s;
+        t=1-t;
+	}
+    if((s+t+u)>1)
+	{
+		if((t+u)>1)
+		{
+			double t1=t;
+            t=1-u;
+            u=1-s-t1;
+		}
+		else
+		{
+			double s1=s;
+            s=1-t-u;
+            u=s1+t+u-1;
+		}
+	}
+	w=1-s-t-u;
+	arr[0]=s;
+	arr[1]=t;
+	arr[2]=u;
+	arr[3]=w;
 }
 
 // Area of boundary element ib
@@ -1533,6 +1566,12 @@ void MC3D::CreatePhoton(Photon *phot)
 void MC3D::CreatePhoton_f(Photon *phot)
 {
   phot->curface = -1;
+  // draw a random point inside tetrahedron
+  double arr[4];
+	rnd_tetra(arr);
+  phot->pos[0] = arr[0]*r(H(phot->curel,0),0) + arr[1]*r(H(phot->curel,1),0) + arr[2]*r(H(phot->curel,2),0) + arr[3]*r(H(phot->curel,3),0);
+  phot->pos[1] = arr[0]*r(H(phot->curel,0),1) + arr[1]*r(H(phot->curel,1),1) + arr[2]*r(H(phot->curel,2),1) + arr[3]*r(H(phot->curel,3),1);
+  phot->pos[2] = arr[0]*r(H(phot->curel,0),2) + arr[1]*r(H(phot->curel,1),2) + arr[2]*r(H(phot->curel,2),2) + arr[3]*r(H(phot->curel,3),2);
   // Isotropic -- Photons initial direction probality density is uniform on a sphere
   // Wolfram Mathworld / Sphere Point Picking
   double dot, r[3], theta, u;
@@ -1937,13 +1976,7 @@ void MC3D::PropagatePhoton(Photon *phot)
       phot->pos[0] += phot->dir[0] * ds;
       phot->pos[1] += phot->dir[1] * ds;
       phot->pos[2] += phot->dir[2] * ds;
-      double P_f=(1-exp(-ds*mua_ex_f[phot->curel]));
-      if(UnifOpen()<P_f)
-      {
-        CreatePhoton_f(phot);
-        PropagatePhoton_f(phot);
-        return;
-      }
+
       double magn=sqrt(pow(phot->dir[0],2)+pow(phot->dir[1],2)+pow(phot->dir[2],2));
       double u_x=phot->dir[0]/magn;
       double u_y=phot->dir[1]/magn;
@@ -2016,6 +2049,14 @@ void MC3D::PropagatePhoton(Photon *phot)
 
       // Upgrade photon weigh
       phot->weight *= exp(-mua_ex_sol[phot->curel] * ds);
+      // checking for fluoroscence
+      double P_f=(1-exp(-ds*mua_ex_f[phot->curel]));
+      if(UnifOpen()<P_f)
+      {
+        CreatePhoton_f(phot);
+        PropagatePhoton_f(phot);
+        return;
+      }
 
       // Photon has reached a situation where it has to be scattered
       prop -= ds;
