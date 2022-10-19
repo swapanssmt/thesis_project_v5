@@ -5,4 +5,5 @@ In this version of code modifications are made for:
 4. change basis from elemental to nodal basis.
 5. Used arccos(a.b) to calcultate distance between directions while discretization of angle on sphere.
 6. Change 2D angular discretization starting point from (0,2pi/nbins) to (2pi/nbins,4pi/nbins).
-7. Presently implementing fluoresecnce.  
+7. Implemented fluoresecnce.
+8. Implementing point source.  

@@ -93,6 +93,7 @@ public:
   void CreatePhoton(Photon *phot);
   void CreatePhoton_f(Photon *phot);
   void ScatterPhoton(Photon *phot);
+  void ScatterPhoton_f(Photon *phot);
   void MirrorPhoton(Photon *phot, int_fast64_t ib);
   void MirrorPhoton(Photon *phot, int_fast64_t el, long f);
   int FresnelPhoton(Photon *phot);
@@ -1639,6 +1640,43 @@ void MC3D::ScatterPhoton(Photon *phot)
   phot->curface = -1;
 }
 
+// Scatter a photon for fluoroscence
+void MC3D::ScatterPhoton_f(Photon *phot)
+{
+  double xi, theta, phi;
+  double dxn, dyn, dzn;
+
+  // Henye-Greenstein scattering
+  theta = acos(2.0 * UnifClosed() - 1.0);
+
+  phi = 2.0 * M_PI * UnifClosed();
+
+  if (fabs(phot->dir[2]) > 0.999)
+  {
+    dxn = sin(theta) * cos(phi);
+    dyn = sin(theta) * sin(phi);
+    dzn = phot->dir[2] * cos(theta) / fabs(phot->dir[2]);
+  }
+  else
+  {
+    dxn = sin(theta) * (phot->dir[0] * phot->dir[2] * cos(phi) - phot->dir[1] * sin(phi)) / sqrt(1.0 - phot->dir[2] * phot->dir[2]) + phot->dir[0] * cos(theta);
+    dyn = sin(theta) * (phot->dir[1] * phot->dir[2] * cos(phi) + phot->dir[0] * sin(phi)) / sqrt(1.0 - phot->dir[2] * phot->dir[2]) + phot->dir[1] * cos(theta);
+    dzn = -sin(theta) * cos(phi) * sqrt(1.0 - phot->dir[2] * phot->dir[2]) + phot->dir[2] * cos(theta);
+  }
+
+  double norm = sqrt(dxn * dxn + dyn * dyn + dzn * dzn);
+  dxn /= norm;
+  dyn /= norm;
+  dzn /= norm;
+
+  phot->dir[0] = dxn;
+  phot->dir[1] = dyn;
+  phot->dir[2] = dzn;
+
+  // This is to prevent RayTriangleIntersects from misbehaving after scattering event in the PropagatePhoton
+  phot->curface = -1;
+}
+
 // Mirror photons propagation with respect to boundary element ib
 void MC3D::MirrorPhoton(Photon *phot, int_fast64_t ib)
 {
@@ -1940,7 +1978,7 @@ void MC3D::PropagatePhoton_f(Photon *phot)
     }
     // Scatter photon
     if (mus_em[phot->curel] > 0.0)
-      ScatterPhoton(phot);
+      ScatterPhoton_f(phot);
   }
 }
 //**********************************************************************************************

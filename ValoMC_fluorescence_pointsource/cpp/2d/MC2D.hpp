@@ -99,6 +99,7 @@ public:
   void CreatePhoton(Photon *phot);
   void CreatePhoton_f(Photon *phot);
   void ScatterPhoton(Photon *phot);
+  void ScatterPhoton_f(Photon *phot);
   void MirrorPhoton(Photon *phot, int_fast64_t ib);
   void MirrorPhoton(Photon *phot, int_fast64_t el, int_fast64_t f);
   int FresnelPhoton(Photon *phot);
@@ -1369,6 +1370,16 @@ void MC2D::ScatterPhoton(Photon *phot)
   phot->curface = -1;
 }
 
+// Scatter a photon for fluoroscence
+void MC2D::ScatterPhoton_f(Photon *phot)
+{
+  double th = 2.0 * M_PI * UnifHalfUp();
+  phot->dir[0] = cos(th);
+  phot->dir[1] = sin(th);
+  // This is to prevent RayRayIntersects from misbehaving after scattering event in the PropagatePhoton
+  phot->curface = -1;
+}
+
 // Mirror photons propagation with respect to boundary element ib
 void MC2D::MirrorPhoton(Photon *phot, int_fast64_t ib)
 {
@@ -1735,7 +1746,7 @@ void MC2D::PropagatePhoton_f(Photon *phot)
     }
     // Scatter photon
     if (mus_em[phot->curel] > 0.0)
-      ScatterPhoton(phot);
+      ScatterPhoton_f(phot);
   }
 }
 // Propagate a photon until it dies

@@ -103,8 +103,10 @@ lightsource=chk_1;
 
 % chk_2=z_coord(temp(chk_1,:));
 vmcboundary.lightsource(lightsource) = {'direct'};
+options.frequency=0;    
+options.photon_count = 7*1e6;
 
-solution = ValoMC(vmcmesh, vmcmedium, vmcboundary);
+solution = ValoMC(vmcmesh, vmcmedium, vmcboundary,options);
 %node_solution = nodalbasis3D(vmcmesh,solution);
 
 %% Visualize the solution
@@ -126,10 +128,10 @@ indices(isnan(indices)) = 1;               % set the grid points that
                                            % element
 
 % get the values on a grid
-grid_fluence = reshape(solution.element_fluence(indices),size(X));
+grid_fluence = reshape(solution.F_element_fluence(indices),size(X));
 
 
-slice(X, Y, Z, grid_fluence, [0,0.2,0.5,0.7,1], [], 0);
+slice(X, Y, Z, grid_fluence, [0.5], [], 0);
 xlabel('x [mm]');
 ylabel('y [mm]');
 zlabel('z [mm]');

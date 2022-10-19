@@ -86,10 +86,10 @@ solution = ValoMC(vmcmesh, vmcmedium, vmcboundary,options);
 
 %% Plot the solution
 
-rad_full_monte=solution.R_element_fluence;
-flu_full_monte=solution.element_fluence;
-
-save('Monte_Carlo_comparison_2D_Swapan_version.mat','rad_full_monte','flu_full_monte','vmcmesh')
+% rad_full_monte=solution.R_element_fluence;
+% flu_full_monte=solution.element_fluence;
+% 
+% save('Monte_Carlo_comparison_2D_Swapan_version.mat','rad_full_monte','flu_full_monte','vmcmesh')
 
 % Elem2Node = zeros(size(vmcmesh.H,1),size(vmcmesh.r,1));
 % for ii=1:size(vmcmesh.H,1)
